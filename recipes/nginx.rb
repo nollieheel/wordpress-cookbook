@@ -16,13 +16,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+node.set['nginx']['default_site_enabled'] = false
+include_recipe 'nginx'
 
 node.set_unless['php-fpm']['pools'] = []
+include_recipe 'php-fpm'
 
-include_recipe "php-fpm"
+# For Ubuntu 14.04 upstart bug thing.
+# Or maybe just delete the file /etc/init.d/php5-fpm?
+if node['platform'] == 'ubuntu' and node['platform_version'].to_f == 14.04
+  file '/etc/init/php5-fpm.override' do
+    content 'reload signal USR2'
+    action :create
+  end
+end
 
-php_fpm_pool "wordpress" do
-  listen "127.0.0.1:9000"
+include_recipe 'php::module_mysql'
+
+php_fpm_pool 'wordpress' do
+  listen '127.0.0.1:9000'
   user node['wordpress']['install']['user']
   group node['wordpress']['install']['group']
   if node['platform'] == 'ubuntu' and node['platform_version'] == '10.04'
@@ -34,15 +46,10 @@ php_fpm_pool "wordpress" do
   start_servers 5
 end
 
-include_recipe "php::module_mysql"
-
-node.set['nginx']['default_site_enabled'] = false
-include_recipe "nginx"
-
-include_recipe "wordpress::app"
+include_recipe 'wordpress::app'
 
 template "#{node['nginx']['dir']}/sites-enabled/wordpress.conf" do
-  source "nginx.conf.erb"
+  source 'nginx.conf.erb'
   variables(
     :docroot          => node['wordpress']['dir'],
     :server_name      => node['wordpress']['server_name'],
